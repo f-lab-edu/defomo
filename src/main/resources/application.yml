@@ -1,0 +1,18 @@
+spring:
+  application:
+    name: defomo
+  config:
+    import: optional:file:.env[.properties]
+
+tossinvest:
+  client-id: ${TOSSINVEST_CLIENT_ID:}
+  client-secret: ${TOSSINVEST_CLIENT_SECRET:}
+  rest-base-url: https://openapi.tossinvest.com
+  websocket-url: wss://openapi-ws.tossinvest.com/ws/v1
+  market-data:
+    kr-symbols: ${TOSSINVEST_KR_SYMBOLS:}
+    us-symbols: ${TOSSINVEST_US_SYMBOLS:}
+
+logging:
+  level:
+    com.defomo.marketdata.adapter.out.tossinvest: INFO
