@@ -3,6 +3,20 @@ spring:
     name: defomo
   config:
     import: optional:file:.env[.properties]
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
+      acks: all
+    consumer:
+      group-id: defomo-trade-execution-consumer
+      auto-offset-reset: earliest
+      enable-auto-commit: false
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+    listener:
+      ack-mode: record
 
 tossinvest:
   client-id: ${TOSSINVEST_CLIENT_ID:}
@@ -12,6 +26,15 @@ tossinvest:
   market-data:
     kr-symbols: ${TOSSINVEST_KR_SYMBOLS:}
     us-symbols: ${TOSSINVEST_US_SYMBOLS:}
+
+defomo:
+  kafka:
+    trade-executions-topic: defomo.trade-executions
+    trade-executions-partitions: 6
+  market-data:
+    batch-window-ms: 100
+    max-trades-per-batch: 500
+    shard-count: 6
 
 logging:
   level:

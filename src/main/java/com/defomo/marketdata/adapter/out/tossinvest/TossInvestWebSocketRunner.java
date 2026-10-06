@@ -1,7 +1,9 @@
 package com.defomo.marketdata.adapter.out.tossinvest;
 
+import com.defomo.marketdata.application.TradeExecutionBatchAggregator;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import java.math.BigDecimal;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.WebSocket;
@@ -33,6 +35,7 @@ public class TossInvestWebSocketRunner implements ApplicationRunner, AutoCloseab
 
 	private final TossInvestProperties properties;
 	private final TossInvestTokenClient tokenClient;
+	private final TradeExecutionBatchAggregator batchAggregator;
 	private final ObjectMapper objectMapper;
 	private final HttpClient httpClient;
 	private final Set<WebSocket> sockets = ConcurrentHashMap.newKeySet();
@@ -40,9 +43,11 @@ public class TossInvestWebSocketRunner implements ApplicationRunner, AutoCloseab
 	public TossInvestWebSocketRunner(
 		TossInvestProperties properties,
 		TossInvestTokenClient tokenClient,
+		TradeExecutionBatchAggregator batchAggregator,
 		ObjectMapper objectMapper) {
 		this.properties = properties;
 		this.tokenClient = tokenClient;
+		this.batchAggregator = batchAggregator;
 		this.objectMapper = objectMapper;
 		this.httpClient = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(10)).build();
 	}
@@ -94,7 +99,8 @@ public class TossInvestWebSocketRunner implements ApplicationRunner, AutoCloseab
 			WebSocket socket = httpClient.newWebSocketBuilder()
 				.connectTimeout(Duration.ofSeconds(10))
 				.header("Authorization", "Bearer " + token)
-				.buildAsync(URI.create(properties.getWebsocketUrl()), new TradeListener(market, declaration))
+				.buildAsync(URI.create(properties.getWebsocketUrl()),
+					new TradeListener(market, declaration, batchAggregator))
 				.get(15, TimeUnit.SECONDS);
 			sockets.add(socket);
 			log.info("TossInvest {} trade WebSocket connected; {} symbols requested", market, symbols.size());
@@ -145,16 +151,22 @@ public class TossInvestWebSocketRunner implements ApplicationRunner, AutoCloseab
 		private final Logger listenerLog = LoggerFactory.getLogger(TradeListener.class);
 		private final String market;
 		private final String declaration;
+		private final TradeExecutionBatchAggregator batchAggregator;
 		private final StringBuilder fragments = new StringBuilder();
 		private final Set<String> firstSeenTopics = ConcurrentHashMap.newKeySet();
 
 		/**
 		 * @param market 로그에 사용할 시장 코드
 		 * @param declaration 연결 후 전송할 JSON 구독 목록
+		 * @param batchAggregator 체결 데이터 집계 기능
 		 */
-		private TradeListener(String market, String declaration) {
+		private TradeListener(
+			String market,
+			String declaration,
+			TradeExecutionBatchAggregator batchAggregator) {
 			this.market = market;
 			this.declaration = declaration;
+			this.batchAggregator = batchAggregator;
 		}
 
 		@Override
@@ -173,7 +185,7 @@ public class TossInvestWebSocketRunner implements ApplicationRunner, AutoCloseab
 		/** 분할된 텍스트 프레임을 모아 완성된 JSON 메시지를 처리한다. */
 		@Override
 		public CompletionStage<?> onText(WebSocket webSocket, CharSequence data, boolean last) {
-				fragments.append(data);
+			fragments.append(data);
 			if (last) {
 				handleFrame(fragments.toString());
 				fragments.setLength(0);
@@ -190,7 +202,6 @@ public class TossInvestWebSocketRunner implements ApplicationRunner, AutoCloseab
 				switch (type) {
 					case "subscriptions" -> handleSubscriptionAck(message);
 					case "message" -> {
-						listenerLog.info("TossInvest {} raw trade frame: {}", market, frame);
 						handleTradeMessage(message);
 					}
 					case "error" -> listenerLog.error("TossInvest {} WebSocket error: {}", market,
@@ -217,18 +228,22 @@ public class TossInvestWebSocketRunner implements ApplicationRunner, AutoCloseab
 			String topic = message.path("topic").asText("unknown");
 			JsonNode data = message.path("data");
 			String symbol = topic.substring(topic.lastIndexOf(':') + 1);
-			String timestamp = data.path("timestamp").asText("unknown");
-			String price = data.path("price").asText("unknown");
-			String volume = data.path("volume").asText("unknown");
-			String currency = data.path("currency").asText("unknown");
+			String timestamp = data.path("timestamp").asText();
+			String price = data.path("price").asText();
+			if (!StringUtils.hasText(symbol) || !StringUtils.hasText(price)
+				|| !StringUtils.hasText(timestamp)) {
+				throw new IllegalArgumentException("Required trade event fields are missing");
+			}
+
+			batchAggregator.accept(market, symbol, new BigDecimal(price));
 			if (firstSeenTopics.add(topic)) {
 				listenerLog.info(
-					"First TossInvest {} trade received: symbol={}, timestamp={}, price={}, volume={}, currency={}",
-					market, symbol, timestamp, price, volume, currency);
+					"First TossInvest {} trade received: symbol={}, timestamp={}, price={}",
+					market, symbol, timestamp, price);
 			} else {
 				listenerLog.debug(
-					"TossInvest {} trade received: symbol={}, timestamp={}, price={}, volume={}, currency={}",
-					market, symbol, timestamp, price, volume, currency);
+					"TossInvest {} trade received: symbol={}, timestamp={}, price={}",
+					market, symbol, timestamp, price);
 			}
 		}
 
