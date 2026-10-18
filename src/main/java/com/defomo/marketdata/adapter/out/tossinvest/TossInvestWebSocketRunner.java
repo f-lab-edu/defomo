@@ -197,19 +197,27 @@ public class TossInvestWebSocketRunner implements ApplicationRunner, AutoCloseab
 
 		private void handleFrame(String frame) {
 			try {
+				// 완성된 텍스트 메시지를 JSON 객체로 변환한다.
 				JsonNode message = objectMapper.readTree(frame);
+				// 메시지 종류에 따라 구독 결과, 체결 데이터, 연결 제어 응답을 구분한다.
 				String type = message.path("type").asText();
 				switch (type) {
+					// 구독 요청이 서버에서 승인됐는지 확인한다.
 					case "subscriptions" -> handleSubscriptionAck(message);
+					// 체결 메시지에서 종목과 가격을 꺼내 배치 집계기에 전달한다.
 					case "message" -> {
 						handleTradeMessage(message);
 					}
+					// 서버가 보낸 오류 내용을 기록한다.
 					case "error" -> listenerLog.error("TossInvest {} WebSocket error: {}", market,
 						message.path("error").toString());
+					// 서버의 pong 응답은 연결 상태 확인용이므로 상세 로그만 남긴다.
 					case "pong" -> listenerLog.debug("TossInvest {} WebSocket pong received", market);
+					// 현재 처리 대상이 아닌 메시지 종류는 원문과 함께 디버그 로그에 남긴다.
 					default -> listenerLog.debug("TossInvest {} WebSocket frame: {}", market, frame);
 				}
 			} catch (Exception exception) {
+				// JSON 형식이 잘못됐거나 메시지 처리 중 오류가 나면 원문과 원인을 기록한다.
 				listenerLog.warn("Could not parse TossInvest {} WebSocket frame: {}", market, frame, exception);
 			}
 		}
@@ -225,17 +233,23 @@ public class TossInvestWebSocketRunner implements ApplicationRunner, AutoCloseab
 		}
 
 		private void handleTradeMessage(JsonNode message) {
+			// 구독 토픽의 마지막 부분에서 종목 코드를 가져온다.
 			String topic = message.path("topic").asText("unknown");
+			// 체결 시각과 가격이 들어 있는 데이터 객체를 가져온다.
 			JsonNode data = message.path("data");
 			String symbol = topic.substring(topic.lastIndexOf(':') + 1);
 			String timestamp = data.path("timestamp").asText();
 			String price = data.path("price").asText();
+			// 필수 값이 빠진 메시지는 집계하지 않고 파싱 오류로 처리한다.
 			if (!StringUtils.hasText(symbol) || !StringUtils.hasText(price)
 				|| !StringUtils.hasText(timestamp)) {
 				throw new IllegalArgumentException("Required trade event fields are missing");
 			}
 
+			// 가격은 부동소수점 오차 없이 다루기 위해 BigDecimal로 변환한다.
+			// 현재 집계기에는 시장, 종목, 가격만 전달하고 체결 시각은 수신 로그에만 사용한다.
 			batchAggregator.accept(market, symbol, new BigDecimal(price));
+			// 종목별 첫 체결은 INFO, 이후 체결은 로그량을 줄이기 위해 DEBUG로 기록한다.
 			if (firstSeenTopics.add(topic)) {
 				listenerLog.info(
 					"First TossInvest {} trade received: symbol={}, timestamp={}, price={}",

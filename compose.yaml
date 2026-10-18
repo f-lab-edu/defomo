@@ -1,4 +1,23 @@
 services:
+  mysql:
+    image: mysql:8.4
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: defomo
+      MYSQL_USER: ${DB_USERNAME:-defomo}
+      MYSQL_PASSWORD: ${DB_PASSWORD:-defomo-local}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-defomo-root-local}
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h localhost -uroot -p$$MYSQL_ROOT_PASSWORD --silent"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+
   kafka-data-init:
     image: apache/kafka:4.3.1
     user: "0:0"
@@ -54,3 +73,4 @@ services:
 
 volumes:
   kafka-data:
+  mysql-data:
