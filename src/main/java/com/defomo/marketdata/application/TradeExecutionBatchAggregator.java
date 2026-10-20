@@ -5,10 +5,10 @@ import com.defomo.marketdata.domain.model.TradeExecutionEvent;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
@@ -21,7 +21,7 @@ public class TradeExecutionBatchAggregator {
 	private final int maxTradesPerBatch;
 	private final long windowNanos;
 	/** 종목마다 현재 집계 중인 배치 하나를 보관한다. */
-	private final Map<InstrumentKey, MutableBatch> batches = new HashMap<>();
+	private final Map<InstrumentKey, MutableBatch> batches = new ConcurrentHashMap<>();
 
 	public TradeExecutionBatchAggregator(
 		TradeExecutionEventPublisher eventPublisher,
@@ -41,28 +41,27 @@ public class TradeExecutionBatchAggregator {
 	public void accept(String market, String symbol, BigDecimal price) {
 		InstrumentKey key = new InstrumentKey(market, symbol);
 		List<TradeExecutionEvent> completed = new ArrayList<>(2);
-		synchronized (batches) {
-			MutableBatch batch = batches.get(key);
+		// 같은 종목의 배치 조회·수정·마감을 하나의 맵 작업으로 처리한다.
+		batches.compute(key, (instrument, batch) -> {
 			// 새 체결을 받았을 때 기존 배치가 이미 만료됐다면 먼저 마감한다.
 			if (batch != null && System.nanoTime() - batch.createdAtNanos >= windowNanos) {
-				completed.add(batch.toEvent(key));
-				batches.remove(key);
+				completed.add(batch.toEvent(instrument));
 				batch = null;
 			}
 			if (batch == null) {
 				batch = new MutableBatch();
-				batches.put(key, batch);
 			}
 			// 같은 종목 배치의 가격 범위와 체결 건수를 갱신한다.
 			batch.add(price);
 			// 최대 건수에 도달하면 시간 윈도우가 끝나기 전에 배치를 마감한다.
 			if (batch.tradeCount >= maxTradesPerBatch) {
-				completed.add(batch.toEvent(key));
-				batches.remove(key);
+				completed.add(batch.toEvent(instrument));
+				return null;
 			}
-		}
+			return batch;
+		});
 
-		// 체결 수신을 막지 않도록 잠금을 푼 뒤 Kafka로 보낸다.
+		// 완성된 배치를 Kafka로 발행한다.
 		completed.forEach(eventPublisher::publish);
 	}
 
@@ -71,17 +70,16 @@ public class TradeExecutionBatchAggregator {
 	public void flushExpiredBatches() {
 		long now = System.nanoTime();
 		List<TradeExecutionEvent> completed = new ArrayList<>();
-		synchronized (batches) {
-			var iterator = batches.entrySet().iterator();
-			while (iterator.hasNext()) {
-				Map.Entry<InstrumentKey, MutableBatch> entry = iterator.next();
-				if (now - entry.getValue().createdAtNanos >= windowNanos) {
-					completed.add(entry.getValue().toEvent(entry.getKey()));
-					iterator.remove();
+		for (Map.Entry<InstrumentKey, MutableBatch> entry : batches.entrySet()) {
+			batches.computeIfPresent(entry.getKey(), (key, batch) -> {
+				if (now - batch.createdAtNanos >= windowNanos) {
+					completed.add(batch.toEvent(key));
+					return null;
 				}
-			}
+				return batch;
+			});
 		}
-		// 체결 수신을 막지 않도록 잠금을 푼 뒤 Kafka로 발행한다.
+		// 완성된 배치를 Kafka로 발행한다.
 		completed.forEach(eventPublisher::publish);
 	}
 
