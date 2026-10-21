@@ -71,6 +71,43 @@ services:
       KAFKA_CLUSTERS_0_NAME: defomo-local
       KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:29092
 
+  kafka-exporter:
+    image: danielqsj/kafka-exporter:v1.10.0
+    restart: unless-stopped
+    depends_on:
+      kafka:
+        condition: service_healthy
+    command:
+      - --kafka.server=kafka:29092
+      - --kafka.version=4.0.0
+      - --group.filter=^defomo-trade-execution-consumer$
+      - --topic.filter=^defomo[.]trade-executions$
+
+  prometheus:
+    image: prom/prometheus:v3.13.4
+    restart: unless-stopped
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+
+  grafana:
+    image: grafana/grafana:13.2.2
+    restart: unless-stopped
+    depends_on:
+      - prometheus
+    ports:
+      - "3000:3000"
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
+
 volumes:
   kafka-data:
   mysql-data:
+  prometheus-data:
+  grafana-data:

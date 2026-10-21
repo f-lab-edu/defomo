@@ -4,6 +4,7 @@ import com.defomo.marketdata.application.port.out.TradeExecutionEventPublisher;
 import com.defomo.marketdata.domain.model.TradeExecutionEvent;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.micrometer.core.instrument.MeterRegistry;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -19,13 +20,16 @@ public class KafkaTradeExecutionEventPublisher implements TradeExecutionEventPub
 	private final KafkaTemplate<String, String> kafkaTemplate;
 	private final ObjectMapper objectMapper;
 	private final String topicName;
+	private final MeterRegistry meterRegistry;
 
 	public KafkaTradeExecutionEventPublisher(
 		KafkaTemplate<String, String> kafkaTemplate,
 		ObjectMapper objectMapper,
+		MeterRegistry meterRegistry,
 		@Value("${defomo.kafka.trade-executions-topic}") String topicName) {
 		this.kafkaTemplate = kafkaTemplate;
 		this.objectMapper = objectMapper;
+		this.meterRegistry = meterRegistry;
 		this.topicName = topicName;
 	}
 
@@ -38,10 +42,12 @@ public class KafkaTradeExecutionEventPublisher implements TradeExecutionEventPub
 			kafkaTemplate.send(topicName, null, payload)
 				.whenComplete((result, error) -> {
 					if (error != null) {
+						meterRegistry.counter("defomo.kafka.trade.events.publish.failures").increment();
 						log.error("Kafka 집계 이벤트 발행 실패: market={}, symbol={}",
 							event.market(), event.symbol(), error);
 						return;
 					}
+					meterRegistry.counter("defomo.kafka.trade.events.publish.successes").increment();
 					log.debug("Kafka 집계 이벤트 발행 완료: topic={}, partition={}, offset={}, market={}, symbol={}",
 						result.getRecordMetadata().topic(),
 						result.getRecordMetadata().partition(),
@@ -49,6 +55,7 @@ public class KafkaTradeExecutionEventPublisher implements TradeExecutionEventPub
 						event.market(), event.symbol());
 				});
 		} catch (JsonProcessingException exception) {
+			meterRegistry.counter("defomo.kafka.trade.events.publish.failures").increment();
 			log.error("Kafka 집계 이벤트 JSON 변환 실패: market={}, symbol={}", event.market(), event.symbol(), exception);
 		}
 	}

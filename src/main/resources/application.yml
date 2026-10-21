@@ -51,3 +51,12 @@ defomo:
 logging:
   level:
     com.defomo.marketdata.adapter.out.tossinvest: INFO
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,prometheus
+  endpoint:
+    health:
+      show-details: never

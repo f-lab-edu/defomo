@@ -7,6 +7,8 @@ import com.defomo.alert.domain.AlertStatus;
 import com.defomo.marketdata.domain.model.TradeExecutionEvent;
 import java.util.ArrayList;
 import java.util.List;
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.Timer;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -15,9 +17,16 @@ import org.springframework.transaction.annotation.Transactional;
 public class AlertConditionEvaluationService {
 
 	private final AlertRepository alertRepository;
+	private final MeterRegistry meterRegistry;
+	private final Timer evaluationTimer;
 
-	public AlertConditionEvaluationService(AlertRepository alertRepository) {
+	public AlertConditionEvaluationService(AlertRepository alertRepository, MeterRegistry meterRegistry) {
 		this.alertRepository = alertRepository;
+		this.meterRegistry = meterRegistry;
+		this.evaluationTimer = Timer.builder("defomo.alert.condition.evaluation")
+			.description("체결 가격 이벤트 1건의 알림 조건 판정 시간")
+			.publishPercentileHistogram()
+			.register(meterRegistry);
 	}
 
 	//TODO - 체결 이벤트를 가져오고, 알림 조건 판별
@@ -27,6 +36,15 @@ public class AlertConditionEvaluationService {
 	 */
 	@Transactional
 	public List<AlertNotificationCandidate> evaluate(TradeExecutionEvent event) {
+		Timer.Sample sample = Timer.start(meterRegistry);
+		try {
+			return evaluateAndRecordCandidates(event);
+		} finally {
+			sample.stop(evaluationTimer);
+		}
+	}
+
+	private List<AlertNotificationCandidate> evaluateAndRecordCandidates(TradeExecutionEvent event) {
 
 		// 체결 이벤트의 종목과 가격 범위에 해당하면서
 		// 아직 발송되지 않은 활성 알림을 조회한다.
@@ -75,6 +93,7 @@ public class AlertConditionEvaluationService {
 		}
 
 		// 이번 체결 이벤트에서 ACTIVE에서 FIRED로 처음 변경된 알림 목록을 반환한다.
+		meterRegistry.counter("defomo.alert.candidates").increment(candidates.size());
 		return candidates;
 	}
 }

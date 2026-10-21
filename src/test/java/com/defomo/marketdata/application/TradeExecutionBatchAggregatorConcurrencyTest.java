@@ -17,6 +17,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.RepeatedTest;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 
 class TradeExecutionBatchAggregatorConcurrencyTest {
 
@@ -31,6 +32,7 @@ class TradeExecutionBatchAggregatorConcurrencyTest {
 		TradeExecutionEventPublisher publisher = publishedEvents::add;
 		TradeExecutionBatchAggregator aggregator = new TradeExecutionBatchAggregator(
 			publisher,
+			new SimpleMeterRegistry(),
 			TOTAL_TRADES + 1,
 			1);
 
