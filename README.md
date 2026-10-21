@@ -13,8 +13,8 @@ JDK 21 이상을 준비합니다. Gradle은 저장소에 포함된 Wrapper를 �
 
 ```bash
 cp .env.example .env
-docker compose up -d
 # .env 파일에서 인증 정보, 구독 종목, 필요 시 DB 연결 정보를 편집
+docker compose up -d
 ./gradlew bootRun
 ```
 

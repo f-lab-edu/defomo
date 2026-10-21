@@ -1,7 +1,9 @@
 package com.defomo.marketdata.adapter.out.tossinvest;
 
+import java.time.Duration;
 import java.time.Instant;
 import org.springframework.http.MediaType;
+import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
@@ -17,7 +19,13 @@ public class TossInvestTokenClient {
 
 	public TossInvestTokenClient(TossInvestProperties properties, RestClient.Builder restClientBuilder) {
 		this.properties = properties;
-		this.restClient = restClientBuilder.baseUrl(properties.getRestBaseUrl()).build();
+		SimpleClientHttpRequestFactory requestFactory = new SimpleClientHttpRequestFactory();
+		requestFactory.setConnectTimeout(Duration.ofSeconds(10));
+		requestFactory.setReadTimeout(Duration.ofSeconds(15));
+		this.restClient = restClientBuilder
+			.baseUrl(properties.getRestBaseUrl())
+			.requestFactory(requestFactory)
+			.build();
 	}
 
 	/**
