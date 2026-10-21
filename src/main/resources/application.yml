@@ -1,0 +1,62 @@
+spring:
+  application:
+    name: defomo
+  config:
+    import: optional:file:.env[.properties]
+  datasource:
+    url: ${DB_URL:jdbc:mysql://localhost:3306/defomo?serverTimezone=UTC}
+    username: ${DB_USERNAME:defomo}
+    password: ${DB_PASSWORD:defomo-local}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+  flyway:
+    enabled: true
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
+      acks: all
+      properties:
+        "[partitioner.class]": org.apache.kafka.clients.producer.RoundRobinPartitioner
+    consumer:
+      group-id: defomo-trade-execution-consumer
+      auto-offset-reset: earliest
+      enable-auto-commit: false
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+    listener:
+      ack-mode: record
+
+tossinvest:
+  client-id: ${TOSSINVEST_CLIENT_ID:}
+  client-secret: ${TOSSINVEST_CLIENT_SECRET:}
+  rest-base-url: https://openapi.tossinvest.com
+  websocket-url: wss://openapi-ws.tossinvest.com/ws/v1
+  market-data:
+    kr-symbols: ${TOSSINVEST_KR_SYMBOLS:}
+    us-symbols: ${TOSSINVEST_US_SYMBOLS:}
+
+defomo:
+  kafka:
+    trade-executions-topic: defomo.trade-executions
+    trade-executions-partitions: 6
+  market-data:
+    batch-window-ms: 100
+    max-trades-per-batch: 500
+
+logging:
+  level:
+    com.defomo.marketdata.adapter.out.tossinvest: INFO
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,prometheus
+  endpoint:
+    health:
+      show-details: never

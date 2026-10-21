@@ -1,0 +1,13 @@
+global:
+  scrape_interval: 1s
+
+scrape_configs:
+  - job_name: defomo
+    metrics_path: /actuator/prometheus
+    static_configs:
+      - targets: ["host.docker.internal:8080"]
+
+  - job_name: kafka-exporter
+    scrape_interval: 1s
+    static_configs:
+      - targets: ["kafka-exporter:9308"]
