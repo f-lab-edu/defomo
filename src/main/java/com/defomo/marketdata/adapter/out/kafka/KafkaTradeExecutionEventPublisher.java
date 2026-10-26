@@ -43,16 +43,19 @@ public class KafkaTradeExecutionEventPublisher implements TradeExecutionEventPub
 				.whenComplete((result, error) -> {
 					if (error != null) {
 						meterRegistry.counter("defomo.kafka.trade.events.publish.failures").increment();
-						log.error("Kafka 집계 이벤트 발행 실패: market={}, symbol={}",
-							event.market(), event.symbol(), error);
+						log.error("Kafka 집계 이벤트 발행 실패: eventId={}, market={}, symbol={}, tradeCount={}, minPrice={}, maxPrice={}",
+							event.eventId(), event.market(), event.symbol(), event.tradeCount(),
+							event.minPrice(), event.maxPrice(), error);
 						return;
 					}
 					meterRegistry.counter("defomo.kafka.trade.events.publish.successes").increment();
-					log.debug("Kafka 집계 이벤트 발행 완료: topic={}, partition={}, offset={}, market={}, symbol={}",
+					log.debug("Kafka 집계 이벤트 발행 완료: topic={}, partition={}, offset={}, eventId={}, market={}, "
+							+ "symbol={}, tradeCount={}, minPrice={}, maxPrice={}",
 						result.getRecordMetadata().topic(),
 						result.getRecordMetadata().partition(),
 						result.getRecordMetadata().offset(),
-						event.market(), event.symbol());
+						event.eventId(), event.market(), event.symbol(), event.tradeCount(),
+						event.minPrice(), event.maxPrice());
 				});
 		} catch (JsonProcessingException exception) {
 			meterRegistry.counter("defomo.kafka.trade.events.publish.failures").increment();

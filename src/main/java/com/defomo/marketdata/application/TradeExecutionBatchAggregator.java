@@ -10,6 +10,8 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import io.micrometer.core.instrument.MeterRegistry;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
@@ -17,6 +19,8 @@ import org.springframework.stereotype.Component;
 /** 종목별 체결을 짧게 모아 가격 범위 이벤트로 만들고 발행자에게 전달한다. */
 @Component
 public class TradeExecutionBatchAggregator {
+
+	private static final Logger log = LoggerFactory.getLogger(TradeExecutionBatchAggregator.class);
 
 	private final TradeExecutionEventPublisher eventPublisher;
 	private final MeterRegistry meterRegistry;
@@ -46,10 +50,14 @@ public class TradeExecutionBatchAggregator {
 		meterRegistry.counter("defomo.marketdata.trades.received").increment();
 		InstrumentKey key = new InstrumentKey(market, symbol);
 		List<TradeExecutionEvent> completed = new ArrayList<>(2);
+		log.debug("체결 데이터 입력: market={}, symbol={}, price={}", market, symbol, price);
 		// 같은 종목의 배치 조회·수정·마감을 하나의 맵 작업으로 처리한다.
 		batches.compute(key, (instrument, batch) -> {
 			// 새 체결을 받았을 때 기존 배치가 이미 만료됐다면 먼저 마감한다.
 			if (batch != null && System.nanoTime() - batch.createdAtNanos >= windowNanos) {
+				log.debug("체결 배치 마감: 사유=새 체결 입력 전 집계 시간 초과, market={}, symbol={}, "
+						+ "tradeCount={}, minPrice={}, maxPrice={}",
+					instrument.market(), instrument.symbol(), batch.tradeCount, batch.minPrice, batch.maxPrice);
 				completed.add(batch.toEvent(instrument));
 				batch = null;
 			}
@@ -58,14 +66,20 @@ public class TradeExecutionBatchAggregator {
 			}
 			// 같은 종목 배치의 가격 범위와 체결 건수를 갱신한다.
 			batch.add(price);
+			log.debug("체결 배치 집계 상태: market={}, symbol={}, tradeCount={}, minPrice={}, maxPrice={}, "
+					+ "batchStartTime={}, batchEndTime={}",
+				instrument.market(), instrument.symbol(), batch.tradeCount, batch.minPrice, batch.maxPrice,
+				batch.batchStartTime, batch.batchEndTime);
 			// 최대 건수에 도달하면 시간 윈도우가 끝나기 전에 배치를 마감한다.
 			if (batch.tradeCount >= maxTradesPerBatch) {
+				log.debug("체결 배치 마감: 사유=최대 체결 건수 도달, market={}, symbol={}, "
+						+ "tradeCount={}, minPrice={}, maxPrice={}",
+					instrument.market(), instrument.symbol(), batch.tradeCount, batch.minPrice, batch.maxPrice);
 				completed.add(batch.toEvent(instrument));
 				return null;
 			}
 			return batch;
 		});
-
 		// 완성된 배치를 Kafka로 발행한다.
 		publishCompleted(completed);
 	}
@@ -78,6 +92,9 @@ public class TradeExecutionBatchAggregator {
 		for (Map.Entry<InstrumentKey, MutableBatch> entry : batches.entrySet()) {
 			batches.computeIfPresent(entry.getKey(), (key, batch) -> {
 				if (now - batch.createdAtNanos >= windowNanos) {
+					log.debug("체결 배치 마감: 사유=집계 시간 초과, market={}, symbol={}, "
+							+ "tradeCount={}, minPrice={}, maxPrice={}",
+						key.market(), key.symbol(), batch.tradeCount, batch.minPrice, batch.maxPrice);
 					completed.add(batch.toEvent(key));
 					return null;
 				}

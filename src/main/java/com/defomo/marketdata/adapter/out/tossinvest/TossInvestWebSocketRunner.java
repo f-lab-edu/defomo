@@ -18,6 +18,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
+import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
@@ -25,6 +26,7 @@ import org.springframework.util.StringUtils;
  * <p>자동 재연결과 체결 데이터 저장은 담당하지 않는다.</p>
  */
 @Component
+@Profile("!demo")
 public class TossInvestWebSocketRunner implements ApplicationRunner, AutoCloseable {
 
 	private static final Logger log = LoggerFactory.getLogger(TossInvestWebSocketRunner.class);

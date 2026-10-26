@@ -1,0 +1,24 @@
+spring:
+  kafka:
+    consumer:
+      group-id: defomo-admin-trade-execution-consumer
+
+logging:
+  level:
+    com.defomo.marketdata.application.TradeExecutionBatchAggregator: DEBUG
+    com.defomo.marketdata.adapter.out.kafka.KafkaTradeExecutionEventPublisher: DEBUG
+    org.apache.kafka.clients.producer.ProducerConfig: WARN
+
+tossinvest:
+  client-id: ""
+  client-secret: ""
+  market-data:
+    kr-symbols: []
+    us-symbols: []
+
+defomo:
+  kafka:
+    trade-executions-topic: defomo.admin.trade-executions
+  market-data:
+    batch-window-ms: 60000
+    max-trades-per-batch: 5
