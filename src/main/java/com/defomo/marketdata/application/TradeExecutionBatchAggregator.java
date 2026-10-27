@@ -10,17 +10,15 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import io.micrometer.core.instrument.MeterRegistry;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
 /** 종목별 체결을 짧게 모아 가격 범위 이벤트로 만들고 발행자에게 전달한다. */
 @Component
+@Slf4j
 public class TradeExecutionBatchAggregator {
-
-	private static final Logger log = LoggerFactory.getLogger(TradeExecutionBatchAggregator.class);
 
 	private final TradeExecutionEventPublisher eventPublisher;
 	private final MeterRegistry meterRegistry;

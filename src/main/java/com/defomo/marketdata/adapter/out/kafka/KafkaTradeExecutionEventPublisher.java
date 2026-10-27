@@ -5,17 +5,15 @@ import com.defomo.marketdata.domain.model.TradeExecutionEvent;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.micrometer.core.instrument.MeterRegistry;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Component;
 
 /** 집계된 체결 이벤트를 Kafka에 발행한다. */
 @Component
+@Slf4j
 public class KafkaTradeExecutionEventPublisher implements TradeExecutionEventPublisher {
-
-	private static final Logger log = LoggerFactory.getLogger(KafkaTradeExecutionEventPublisher.class);
 
 	private final KafkaTemplate<String, String> kafkaTemplate;
 	private final ObjectMapper objectMapper;
