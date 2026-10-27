@@ -54,21 +54,25 @@ public class TradeExecutionEventKafkaConsumer {
 		// Kafka 레코드의 값은 JSON 문자열이므로, 서비스에서 다룰 체결 이벤트 객체로 변환한다.
 		// JSON 형식이 잘못되었거나 필드 변환에 실패하면 예외를 Kafka 리스너 컨테이너로 전달한다.
 		TradeExecutionEvent event = objectMapper.readValue(record.value(), TradeExecutionEvent.class);
+		log.debug("읽어온 체결 이벤트: eventId={}, market={}, symbol={}, tradeCount={}, minPrice={}, maxPrice={}, "
+				+ "batchStartTime={}, batchEndTime={}",
+			event.eventId(), event.market(), event.symbol(), event.tradeCount(), event.minPrice(), event.maxPrice(),
+			event.batchStartTime(), event.batchEndTime());
 
 		// 시장·종목·가격 범위에 해당하는 활성 알림을 조회하고 조건 충족 처리를 요청한다.
 		// 최초로 조건을 충족한 알림은 ACTIVE에서 FIRED로 변경된다.
 		List<AlertNotificationCandidate> candidates = alertConditionEvaluationService.evaluate(event);
+		log.debug("알림 조건 판정 완료: eventId={}, candidateCount={}", event.eventId(), candidates.size());
 
 		// 조건을 만족한 알림이 없으면 반복 로그를 줄이기 위해 상세 수준으로 기록하고 종료한다.
 		if (candidates.isEmpty()) {
-			log.debug("목표가격 조건을 충족한 알림 없음: market={}, symbol={}", event.market(), event.symbol());
 			return;
 		}
 
 		// 이번 체결 이벤트에서 처음 조건을 충족한 알림 정보를 로그로 기록한다.
 		// 현재 단계에서는 알림 정보를 별도 이벤트 테이블에 저장하거나 실제 채널로 전송하지 않는다.
 		for (AlertNotificationCandidate candidate : candidates) {
-			log.info("목표가격 조건 충족: alertId={}, market={}, symbol={}, condition={}, targetPrice={}, tradeEventId={}",
+			log.debug("목표가격 조건 충족: alertId={}, market={}, symbol={}, condition={}, targetPrice={}, tradeEventId={}",
 				candidate.alertId(),
 				candidate.market(),
 				candidate.symbol(),
