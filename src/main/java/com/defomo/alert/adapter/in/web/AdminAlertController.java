@@ -6,19 +6,22 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.Size;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
-import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -28,6 +31,9 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api/admin/alerts")
 @Tag(name = "Admin Alerts", description = "관리자 사용자 목표가격 알림 관리")
 public class AdminAlertController {
+
+	private static final int DEFAULT_PAGE_SIZE = 20;
+	private static final int MAX_PAGE_SIZE = 100;
 
 	private final AlertService alertService;
 
@@ -47,13 +53,17 @@ public class AdminAlertController {
 
 	/** 전체 알림을 페이지 단위로 조회한다.
 	 *
-	 * @param pageable 페이지 번호, 크기, 정렬 기준
+	 * @param page 조회할 페이지 번호
+	 * @param size 페이지 크기
 	 * @return 알림 페이지
 	 */
 	@GetMapping
 	@Operation(summary = "전체 알림 조회", description = "생성 시각이 최신인 알림부터 페이지 단위로 조회한다.")
-	public Page<AlertResponse> findAll(@PageableDefault(
-		size = 20, sort = {"createdAt", "id"}, direction = Sort.Direction.DESC) Pageable pageable) {
+	public Page<AlertResponse> findAll(
+		@RequestParam(defaultValue = "0") @Min(0) int page,
+		@RequestParam(defaultValue = "20") @Min(1) @Max(MAX_PAGE_SIZE) int size) {
+		Pageable pageable = PageRequest.of(page, size, Sort.by(
+			Sort.Order.desc("createdAt"), Sort.Order.desc("id")));
 		return alertService.findAll(pageable).map(AlertResponse::from);
 	}
 
