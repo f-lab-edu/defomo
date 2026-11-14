@@ -2,6 +2,7 @@ package com.defomo.marketdata.application;
 
 import com.defomo.marketdata.application.port.out.TradeExecutionEventPublisher;
 import com.defomo.marketdata.domain.model.TradeExecutionEvent;
+import io.micrometer.core.instrument.Gauge;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -9,6 +10,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicLong;
 import io.micrometer.core.instrument.MeterRegistry;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -24,6 +26,8 @@ public class TradeExecutionBatchAggregator {
 	private final MeterRegistry meterRegistry;
 	private final int maxTradesPerBatch;
 	private final long windowNanos;
+	private final AtomicLong pendingTrades = new AtomicLong();
+	private final AtomicLong pendingBatches = new AtomicLong();
 	/** 종목마다 현재 집계 중인 배치 하나를 보관한다. */
 	private final Map<InstrumentKey, MutableBatch> batches = new ConcurrentHashMap<>();
 
@@ -39,6 +43,14 @@ public class TradeExecutionBatchAggregator {
 		this.meterRegistry = meterRegistry;
 		this.maxTradesPerBatch = maxTradesPerBatch;
 		this.windowNanos = batchWindowMillis * 1_000_000;
+		// 집계 중인 체결 수
+		Gauge.builder("defomo.marketdata.batches.pending.trades", pendingTrades, AtomicLong::get)
+			.description("Trades currently held in in-memory aggregation batches")
+			.register(meterRegistry);
+		// 집계 중인 배치 수
+		Gauge.builder("defomo.marketdata.batches.pending.count", pendingBatches, AtomicLong::get)
+			.description("Number of in-memory aggregation batches not yet completed")
+			.register(meterRegistry);
 	}
 
 	/**
@@ -57,13 +69,20 @@ public class TradeExecutionBatchAggregator {
 						+ "tradeCount={}, minPrice={}, maxPrice={}",
 					instrument.market(), instrument.symbol(), batch.tradeCount, batch.minPrice, batch.maxPrice);
 				completed.add(batch.toEvent(instrument));
+				// 배치 처리가 완료되었으므로 모니터링 지표인 배치 수와 체결 데이터 수를 갱신한다.
+				pendingTrades.addAndGet(-batch.tradeCount);
+				pendingBatches.decrementAndGet();
 				batch = null;
 			}
 			if (batch == null) {
 				batch = new MutableBatch();
+				// 모니터링 지표 (배치 수) 갱신
+				pendingBatches.incrementAndGet();
 			}
 			// 같은 종목 배치의 가격 범위와 체결 건수를 갱신한다.
 			batch.add(price);
+			// 모니터링 지표 (집계된 체결 데이터 개수) 갱신
+			pendingTrades.incrementAndGet();
 			log.debug("체결 배치 집계 상태: market={}, symbol={}, tradeCount={}, minPrice={}, maxPrice={}, "
 					+ "batchStartTime={}, batchEndTime={}",
 				instrument.market(), instrument.symbol(), batch.tradeCount, batch.minPrice, batch.maxPrice,
@@ -74,6 +93,9 @@ public class TradeExecutionBatchAggregator {
 						+ "tradeCount={}, minPrice={}, maxPrice={}",
 					instrument.market(), instrument.symbol(), batch.tradeCount, batch.minPrice, batch.maxPrice);
 				completed.add(batch.toEvent(instrument));
+				// 배치 처리가 완료되었으므로 모니터링 지표인 배치 수와 체결 데이터 수를 갱신한다.
+				pendingTrades.addAndGet(-batch.tradeCount);
+				pendingBatches.decrementAndGet();
 				return null;
 			}
 			return batch;
@@ -94,6 +116,9 @@ public class TradeExecutionBatchAggregator {
 							+ "tradeCount={}, minPrice={}, maxPrice={}",
 						key.market(), key.symbol(), batch.tradeCount, batch.minPrice, batch.maxPrice);
 					completed.add(batch.toEvent(key));
+					// 배치 처리가 완료되었으므로 모니터링 지표인 배치 수와 체결 데이터 수를 갱신한다.
+					pendingTrades.addAndGet(-batch.tradeCount);
+					pendingBatches.decrementAndGet();
 					return null;
 				}
 				return batch;
@@ -105,7 +130,9 @@ public class TradeExecutionBatchAggregator {
 
 	private void publishCompleted(List<TradeExecutionEvent> completed) {
 		completed.forEach(event -> {
+			// 모니터링 지표 갱신: 집계를 마친 배치와 배치에 포함된 체결 데이터 누적 개수 증가
 			meterRegistry.counter("defomo.marketdata.batches.completed").increment();
+			meterRegistry.counter("defomo.marketdata.batch.trades.completed").increment(event.tradeCount());
 			eventPublisher.publish(event);
 		});
 	}

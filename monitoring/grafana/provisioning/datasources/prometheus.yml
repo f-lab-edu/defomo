@@ -1,5 +1,9 @@
 apiVersion: 1
 
+deleteDatasources:
+  - name: Loki
+    uid: loki
+
 datasources:
   - name: Prometheus
     uid: prometheus

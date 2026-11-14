@@ -92,6 +92,87 @@
       "targets": [{"expr": "max(kafka_consumergroup_members{consumergroup=\"defomo-trade-execution-consumer\"})", "refId": "A"}],
       "title": "체결 Consumer 그룹 멤버 수",
       "type": "stat"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "fieldConfig": {"defaults": {"unit": "ops", "decimals": 2}, "overrides": []},
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 36},
+      "id": 10,
+      "options": {"legend": {"displayMode": "list", "placement": "bottom"}, "tooltip": {"mode": "single"}},
+      "targets": [
+        {"expr": "sum by (market) (rate(defomo_marketdata_websocket_trades_received_total[1m]))", "legendFormat": "받음 {{market}}", "refId": "A"},
+        {"expr": "sum by (market) (rate(defomo_marketdata_websocket_trades_forwarded_total[1m]))", "legendFormat": "집계기에 전달 {{market}}", "refId": "B"}
+      ],
+      "title": "WebSocket 체결 수신 및 집계기 전달",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "fieldConfig": {"defaults": {"unit": "ops", "decimals": 2}, "overrides": []},
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 36},
+      "id": 11,
+      "options": {"legend": {"displayMode": "list", "placement": "bottom"}, "tooltip": {"mode": "single"}},
+      "targets": [
+        {"expr": "sum(rate(defomo_marketdata_trades_received_total[1m]))", "legendFormat": "집계기 입력 체결", "refId": "A"},
+        {"expr": "sum(rate(defomo_marketdata_batch_trades_completed_total[1m]))", "legendFormat": "완료 배치에 포함된 체결", "refId": "B"}
+      ],
+      "title": "집계기 입력과 완료 배치 체결 수",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "fieldConfig": {"defaults": {"unit": "short", "decimals": 0}, "overrides": []},
+      "gridPos": {"h": 6, "w": 8, "x": 0, "y": 44},
+      "id": 12,
+      "options": {"colorMode": "value", "graphMode": "area", "justifyMode": "auto", "orientation": "auto", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}},
+      "targets": [{"expr": "sum(defomo_marketdata_batches_pending_trades)", "refId": "A"}],
+      "title": "메모리 집계 대기 체결 수",
+      "type": "stat"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "fieldConfig": {"defaults": {"unit": "short", "decimals": 0}, "overrides": []},
+      "gridPos": {"h": 6, "w": 8, "x": 8, "y": 44},
+      "id": 13,
+      "options": {"colorMode": "value", "graphMode": "area", "justifyMode": "auto", "orientation": "auto", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}},
+      "targets": [{"expr": "sum(defomo_marketdata_batches_pending_count)", "refId": "A"}],
+      "title": "메모리 집계 대기 배치 수",
+      "type": "stat"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "fieldConfig": {"defaults": {"unit": "short", "decimals": 0}, "overrides": []},
+      "gridPos": {"h": 6, "w": 8, "x": 16, "y": 44},
+      "id": 14,
+      "options": {"colorMode": "value", "graphMode": "area", "justifyMode": "auto", "orientation": "auto", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}},
+      "targets": [{"expr": "sum(defomo_kafka_trade_events_publish_in_flight)", "refId": "A"}],
+      "title": "Kafka 발행 응답 대기 수",
+      "type": "stat"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "fieldConfig": {"defaults": {"unit": "ops", "decimals": 2}, "overrides": []},
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 50},
+      "id": 15,
+      "options": {"legend": {"displayMode": "list", "placement": "bottom"}, "tooltip": {"mode": "single"}},
+      "targets": [
+        {"expr": "sum by (market) (rate(defomo_kafka_trade_events_publish_successes_total[1m]))", "legendFormat": "Kafka 확인 성공 {{market}}", "refId": "A"},
+        {"expr": "sum by (market) (rate(defomo_kafka_trade_events_publish_failures_total[1m]))", "legendFormat": "발행 실패 {{market}}", "refId": "B"}
+      ],
+      "title": "Kafka 발행 성공 및 실패",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "fieldConfig": {"defaults": {"unit": "ops", "decimals": 2}, "overrides": []},
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 50},
+      "id": 16,
+      "options": {"legend": {"displayMode": "list", "placement": "bottom"}, "tooltip": {"mode": "single"}},
+      "targets": [
+        {"expr": "sum by (market) (rate(defomo_marketdata_websocket_message_failures_total[1m]))", "legendFormat": "메시지 처리 실패 {{market}}", "refId": "A"}
+      ],
+      "title": "WebSocket 메시지 파싱·처리 실패",
+      "type": "timeseries"
     }
   ],
   "refresh": "5s",
