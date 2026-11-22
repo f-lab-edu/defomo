@@ -101,10 +101,10 @@ Gradle Wrapper로 테스트를 실행합니다.
 
 ## WebSocket 부하 입력
 
-Postman은 연결과 단일 메시지 확인에 사용하고, 일정한 속도로 메시지를 보내려면 `tools/k6/admin-trade-ws-load.js`를 사용합니다. `demo` 프로필은 테스트 토픽을 사용하며, 아래 명령은 소비자를 중지하고 집계 시간을 250ms, 최대 체결 수를 500건으로 설정합니다.
+Postman은 연결과 단일 메시지 확인에 사용하고, 일정한 속도로 메시지를 보내려면 `tools/k6/admin-trade-ws-load.js`를 사용합니다. `demo` 프로필에서 관리자 체결 입력은 테스트 토픽에 건별로 비동기 발행됩니다. 아래 명령은 Kafka 소비자를 끕니다.
 
 ```bash
-./gradlew bootRun --args='--spring.profiles.active=demo --spring.kafka.listener.auto-startup=false --defomo.market-data.batch-window-ms=250 --defomo.market-data.max-trades-per-batch=500 --logging.level.com.defomo.marketdata.application.TradeExecutionBatchAggregator=INFO --logging.level.com.defomo.marketdata.adapter.out.kafka.KafkaTradeExecutionEventPublisher=INFO'
+./gradlew bootRun --args='--spring.profiles.active=demo --spring.kafka.listener.auto-startup=false --logging.level.com.defomo.marketdata.adapter.out.kafka.KafkaTradeExecutionEventPublisher=INFO'
 ```
 
 별도 터미널에서 k6 부하를 시작합니다. 기본값은 초당 20,000건을 10초 동안 보내는 설정이며, 총 목표량은 200,000건입니다. 전송량과 실행 시간은 스크립트 상단에서 변경합니다.
@@ -113,7 +113,8 @@ Postman은 연결과 단일 메시지 확인에 사용하고, 일정한 속도�
 k6 run tools/k6/admin-trade-ws-load.js
 ```
 
-스크립트는 WebSocket 연결 20개를 사용하고, 전송을 멈춘 뒤 5초 동안 연결을 유지해 마지막 응답을 받습니다. 실행 결과의 `ws_messages_sent`와 `ws_messages_accepted`를 비교해 부하 발생기가 보낸 수와 서버가 집계기에 전달했다고 응답한 수를 확인합니다. 초당 20,000건은 목표치이므로 실제 발생량은 k6 결과에서 확인합니다. 앱을 `demo` 프로필로 실행하지 않으면 WebSocket 경로가 활성화되지 않습니다.
+스크립트는 WebSocket 연결 20개를 사용하고, 전송을 멈춘 뒤 5초 동안 연결을 유지해 마지막 응답을 받습니다. 실행 결과의 `ws_messages_sent`와 `ws_messages_accepted`를 비교해 부하 발생기가 보낸 수와 서버의 수락 응답을 받은 수를 확인합니다. 초당 20,000건은 목표치이므로 실제 발생량은 k6 결과에서 확인합니다. 앱을 `demo` 프로필로 실행하지 않으면 WebSocket 경로가 활성화되지 않습니다.
+
 
 ## 사용 기술 및 환경
 

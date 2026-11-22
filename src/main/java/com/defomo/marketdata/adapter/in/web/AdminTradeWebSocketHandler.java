@@ -46,16 +46,16 @@ public class AdminTradeWebSocketHandler extends TextWebSocketHandler {
 			return;
 		}
 
-		adminTradeInputService.addTrade(request.market(), request.symbol(), request.price());
 		Map<String, String> response = new HashMap<>(Map.of(
 			"status", "accepted",
-			"message", "체결을 집계기에 전달했습니다.",
+			"message", "체결 수신 및 검증이 완료됐습니다.",
 			"market", request.market().trim().toUpperCase(Locale.ROOT),
 			"symbol", request.symbol().trim().toUpperCase(Locale.ROOT)));
 		if (request.tradeId() != null) {
 			response.put("tradeId", request.tradeId());
 		}
 		send(session, response);
+		adminTradeInputService.addTrade(request.market(), request.symbol(), request.price());
 	}
 
 	private void send(WebSocketSession session, Map<String, ?> response) throws IOException {

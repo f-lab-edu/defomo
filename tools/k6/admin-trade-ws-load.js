@@ -105,8 +105,8 @@ export default function () {
 			// 서버가 돌려준 JSON 응답의 상태에 따라 수락과 거부를 나눈다.
 			const response = JSON.parse(event.data);
 			if (response.status === 'accepted' && pending.delete(response.tradeId)) {
-				// 입력 서비스가 요청을 받아 집계 단계로 넘겼다는 뜻이다.
-				// Kafka 발행 완료를 뜻하지는 않는다.
+				// 서버가 체결을 수신하고 검증한 직후 보낸 확인 응답을 센다.
+				// 서버는 이 응답을 전송한 뒤 체결 처리 코드를 호출한다.
 				messagesAccepted.add(1);
 			} else {
 				messagesRejected.add(1);

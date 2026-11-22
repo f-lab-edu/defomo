@@ -22,10 +22,10 @@ public class AdminTradeController {
 
 	private final AdminTradeInputService adminTradeInputService;
 
-	/** 요청한 체결을 종목별 배치에 추가한다. */
+	/** 관리자 체결 입력을 처리한다. */
 	@PostMapping
 	@ResponseStatus(HttpStatus.ACCEPTED)
-	@Operation(summary = "체결 데이터 입력", description = "체결을 종목별로 집계하고, 배치가 완성되면 Kafka에 발행한다.")
+	@Operation(summary = "체결 데이터 입력", description = "체결마다 개별 Kafka 이벤트를 비동기 발행한다.")
 	public void addTrade(@Valid @RequestBody AdminTradeRequest request) {
 		adminTradeInputService.addTrade(request.market(), request.symbol(), request.price());
 	}
