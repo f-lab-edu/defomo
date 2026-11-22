@@ -24,5 +24,9 @@ public record AdminTradeRequest(
 	@NotNull(message = "price는 필수입니다.")
 	@DecimalMin(value = "0", inclusive = false, message = "price는 0보다 커야 합니다.")
 	@Digits(integer = 100, fraction = 8, message = "price는 소수점 8자리 이하여야 합니다.")
-	BigDecimal price) {
+	BigDecimal price,
+	@Schema(description = "WebSocket 수락 응답을 입력 요청과 대조하기 위해 클라이언트가 지정하는 ID",
+		example = "load-run-1-42")
+	@Size(max = 128, message = "tradeId는 128자 이하여야 합니다.")
+	String tradeId) {
 }
