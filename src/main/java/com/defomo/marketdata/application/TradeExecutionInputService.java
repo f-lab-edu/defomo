@@ -10,10 +10,10 @@ import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
-/** 관리자 입력으로 받은 체결을 개별 이벤트로 발행한다. */
+/** 수신한 체결을 개별 이벤트로 발행한다. */
 @Service
 @RequiredArgsConstructor
-public class AdminTradeInputService {
+public class TradeExecutionInputService {
 
 	private final TradeExecutionEventPublisher eventPublisher;
 	private final MeterRegistry meterRegistry;

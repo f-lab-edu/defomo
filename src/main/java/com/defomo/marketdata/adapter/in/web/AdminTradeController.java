@@ -1,6 +1,6 @@
 package com.defomo.marketdata.adapter.in.web;
 
-import com.defomo.marketdata.application.AdminTradeInputService;
+import com.defomo.marketdata.application.TradeExecutionInputService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import java.math.BigDecimal;
@@ -20,13 +20,13 @@ import org.springframework.web.bind.annotation.RestController;
 @Tag(name = "Admin", description = "관리자 체결 데이터 입력")
 public class AdminTradeController {
 
-	private final AdminTradeInputService adminTradeInputService;
+	private final TradeExecutionInputService tradeExecutionInputService;
 
 	/** 관리자 체결 입력을 처리한다. */
 	@PostMapping
 	@ResponseStatus(HttpStatus.ACCEPTED)
 	@Operation(summary = "체결 데이터 입력", description = "체결마다 개별 Kafka 이벤트를 비동기 발행한다.")
 	public void addTrade(@Valid @RequestBody AdminTradeRequest request) {
-		adminTradeInputService.addTrade(request.market(), request.symbol(), request.price());
+		tradeExecutionInputService.addTrade(request.market(), request.symbol(), request.price());
 	}
 }

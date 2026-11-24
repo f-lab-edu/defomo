@@ -87,7 +87,7 @@ Docker Compose로 실행한 로컬 모니터링 도구는 다음 주소에서 �
 | Prometheus | [http://localhost:9090](http://localhost:9090) | 애플리케이션 및 Kafka 지표 조회 |
 | Grafana | [http://localhost:3000](http://localhost:3000) | 체결 수신·집계·Kafka 발행 지표와 Consumer Lag 대시보드 확인 |
 
-체결 파이프라인의 수신 건수, 완료 배치의 체결 수, 미완료 배치 수, Kafka 발행 성공·실패·대기 건수는 Micrometer로 노출하고 Prometheus가 수집합니다. Grafana의 `DEFOMO 실시간 체결 및 알림` 대시보드에서 확인할 수 있습니다.
+체결 파이프라인의 수신 건수와 Kafka 발행 성공·실패·대기 건수는 Micrometer로 노출하고 Prometheus가 수집합니다. Grafana의 `DEFOMO 실시간 체결 및 알림` 대시보드에서 확인할 수 있습니다.
 
 ## 테스트
 

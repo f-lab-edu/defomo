@@ -12,7 +12,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Component;
 
-/** 집계된 체결 이벤트를 Kafka에 발행한다. */
+/** 개별 체결 이벤트를 Kafka에 발행한다. */
 @Component
 @Slf4j
 public class KafkaTradeExecutionEventPublisher implements TradeExecutionEventPublisher {
@@ -46,7 +46,7 @@ public class KafkaTradeExecutionEventPublisher implements TradeExecutionEventPub
 		} catch (JsonProcessingException exception) {
 			// 전송 전에 JSON 변환이 실패해도 발행 실패로 센다.
 			recordFailure(event);
-			log.error("Kafka 집계 이벤트 JSON 변환 실패: market={}, symbol={}", event.market(), event.symbol(), exception);
+			log.error("Kafka 체결 이벤트 JSON 변환 실패: market={}, symbol={}", event.market(), event.symbol(), exception);
 			return;
 		}
 
@@ -61,7 +61,7 @@ public class KafkaTradeExecutionEventPublisher implements TradeExecutionEventPub
 						if (error != null) {
 							// 모니터링 지표 갱신: 발행한 이벤트가 Kafka 수신을 실패한 경우
 							recordFailure(event);
-							log.error("Kafka 집계 이벤트 발행 실패: eventId={}, market={}, symbol={}, tradeCount={}, minPrice={}, maxPrice={}",
+							log.error("Kafka 체결 이벤트 발행 실패: eventId={}, market={}, symbol={}, tradeCount={}, minPrice={}, maxPrice={}",
 								event.eventId(), event.market(), event.symbol(), event.tradeCount(),
 								event.minPrice(), event.maxPrice(), error);
 							return;
@@ -69,7 +69,7 @@ public class KafkaTradeExecutionEventPublisher implements TradeExecutionEventPub
 						// 모니터링 지표 갱신: 발행한 이벤트가 Kafka 정상적으로 수신을 성공 경우
 						meterRegistry.counter("defomo.kafka.trade.events.publish.successes", "market", event.market())
 							.increment();
-						log.debug("Kafka 집계 이벤트 발행 완료: topic={}, partition={}, offset={}, eventId={}, market={}, "
+						log.debug("Kafka 체결 이벤트 발행 완료: topic={}, partition={}, offset={}, eventId={}, market={}, "
 								+ "symbol={}, tradeCount={}, minPrice={}, maxPrice={}",
 							result.getRecordMetadata().topic(),
 							result.getRecordMetadata().partition(),
@@ -86,7 +86,7 @@ public class KafkaTradeExecutionEventPublisher implements TradeExecutionEventPub
 			publishesInFlight.decrementAndGet();
 			// 모니터링 지표 갱신: 이벤트 발행 실패 개수
 			recordFailure(event);
-			log.error("Kafka 집계 이벤트 발행 요청 실패: eventId={}, market={}, symbol={}",
+			log.error("Kafka 체결 이벤트 발행 요청 실패: eventId={}, market={}, symbol={}",
 				event.eventId(), event.market(), event.symbol(), exception);
 		}
 	}

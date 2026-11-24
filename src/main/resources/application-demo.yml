@@ -5,7 +5,6 @@ spring:
 
 logging:
   level:
-    com.defomo.marketdata.application.TradeExecutionBatchAggregator: DEBUG
     com.defomo.marketdata.adapter.out.kafka.KafkaTradeExecutionEventPublisher: DEBUG
     com.defomo.marketdata.adapter.in.kafka.TradeExecutionEventKafkaConsumer: DEBUG
     org.apache.kafka.clients.producer.ProducerConfig: WARN
@@ -20,6 +19,3 @@ tossinvest:
 defomo:
   kafka:
     trade-executions-topic: defomo.admin.trade-executions
-  market-data:
-    batch-window-ms: 60000
-    max-trades-per-batch: 5

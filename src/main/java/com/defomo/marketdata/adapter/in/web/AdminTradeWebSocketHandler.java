@@ -1,6 +1,6 @@
 package com.defomo.marketdata.adapter.in.web;
 
-import com.defomo.marketdata.application.AdminTradeInputService;
+import com.defomo.marketdata.application.TradeExecutionInputService;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.validation.ConstraintViolation;
@@ -25,7 +25,7 @@ public class AdminTradeWebSocketHandler extends TextWebSocketHandler {
 
 	private final ObjectMapper objectMapper;
 	private final Validator validator;
-	private final AdminTradeInputService adminTradeInputService;
+	private final TradeExecutionInputService tradeExecutionInputService;
 
 	@Override
 	protected void handleTextMessage(WebSocketSession session, TextMessage message) throws IOException {
@@ -55,7 +55,7 @@ public class AdminTradeWebSocketHandler extends TextWebSocketHandler {
 			response.put("tradeId", request.tradeId());
 		}
 		send(session, response);
-		adminTradeInputService.addTrade(request.market(), request.symbol(), request.price());
+		tradeExecutionInputService.addTrade(request.market(), request.symbol(), request.price());
 	}
 
 	private void send(WebSocketSession session, Map<String, ?> response) throws IOException {
