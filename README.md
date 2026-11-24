@@ -85,7 +85,9 @@ Docker Compose로 실행한 로컬 모니터링 도구는 다음 주소에서 �
 |---|---|---|
 | Kafka UI | [http://localhost:8081](http://localhost:8081) | Kafka 토픽, 레코드, Consumer 그룹 확인 |
 | Prometheus | [http://localhost:9090](http://localhost:9090) | 애플리케이션 및 Kafka 지표 조회 |
-| Grafana | [http://localhost:3000](http://localhost:3000) | 체결 수신량, 배치 발행량, 알림 판정 시간, Consumer Lag 등 대시보드 확인 |
+| Grafana | [http://localhost:3000](http://localhost:3000) | 체결 수신·집계·Kafka 발행 지표와 Consumer Lag 대시보드 확인 |
+
+체결 파이프라인의 수신 건수와 Kafka 발행 성공·실패·대기 건수는 Micrometer로 노출하고 Prometheus가 수집합니다. Grafana의 `DEFOMO 실시간 체결 및 알림` 대시보드에서 확인할 수 있습니다.
 
 ## 테스트
 
@@ -96,6 +98,23 @@ Gradle Wrapper로 테스트를 실행합니다.
 ```
 
 현재 집계기의 체결 입력과 만료 처리가 동시에 실행되는 상황을 다루는 동시성 테스트가 포함되어 있습니다.
+
+## WebSocket 부하 입력
+
+Postman은 연결과 단일 메시지 확인에 사용하고, 일정한 속도로 메시지를 보내려면 `tools/k6/admin-trade-ws-load.js`를 사용합니다. `demo` 프로필에서 관리자 체결 입력은 테스트 토픽에 건별로 비동기 발행됩니다. 아래 명령은 Kafka 소비자를 끕니다.
+
+```bash
+./gradlew bootRun --args='--spring.profiles.active=demo --spring.kafka.listener.auto-startup=false --logging.level.com.defomo.marketdata.adapter.out.kafka.KafkaTradeExecutionEventPublisher=INFO'
+```
+
+별도 터미널에서 k6 부하를 시작합니다. 기본값은 초당 20,000건을 10초 동안 보내는 설정이며, 총 목표량은 200,000건입니다. 전송량과 실행 시간은 스크립트 상단에서 변경합니다.
+
+```bash
+k6 run tools/k6/admin-trade-ws-load.js
+```
+
+스크립트는 WebSocket 연결 20개를 사용하고, 전송을 멈춘 뒤 5초 동안 연결을 유지해 마지막 응답을 받습니다. 실행 결과의 `ws_messages_sent`와 `ws_messages_accepted`를 비교해 부하 발생기가 보낸 수와 서버의 수락 응답을 받은 수를 확인합니다. 초당 20,000건은 목표치이므로 실제 발생량은 k6 결과에서 확인합니다. 앱을 `demo` 프로필로 실행하지 않으면 WebSocket 경로가 활성화되지 않습니다.
+
 
 ## 사용 기술 및 환경
 

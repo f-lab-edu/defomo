@@ -44,9 +44,6 @@ defomo:
   kafka:
     trade-executions-topic: defomo.trade-executions
     trade-executions-partitions: 6
-  market-data:
-    batch-window-ms: 100
-    max-trades-per-batch: 500
 
 logging:
   level:

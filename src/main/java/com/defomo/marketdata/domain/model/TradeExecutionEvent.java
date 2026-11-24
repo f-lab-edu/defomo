@@ -4,12 +4,12 @@ import java.math.BigDecimal;
 import java.time.Instant;
 
 /**
- * 한 종목의 체결 배치를 가격 범위로 요약한 이벤트.
+ * 개별 체결 이벤트. 기존 소비자와의 호환성을 위해 가격 범위와 배치 시각 필드를 유지한다.
  *
- * @param minPrice 배치에 포함된 체결 가격 중 최저가
- * @param maxPrice 배치에 포함된 체결 가격 중 최고가
- * @param batchStartTime 앱에서 배치를 생성한 시각
- * @param batchEndTime 앱에서 마지막 체결 가격을 배치에 추가한 시각
+ * @param minPrice 체결 가격 (maxPrice와 동일)
+ * @param maxPrice 체결 가격 (minPrice와 동일)
+ * @param batchStartTime 체결 수신 시각
+ * @param batchEndTime 체결 수신 시각 (batchStartTime과 동일)
  */
 public record TradeExecutionEvent(
 	String eventId,

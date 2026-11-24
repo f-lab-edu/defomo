@@ -14,9 +14,14 @@ import jakarta.persistence.PrePersist;
 import jakarta.persistence.Table;
 import java.math.BigDecimal;
 import java.time.Instant;
+import lombok.AccessLevel;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
 
 /** DB에 저장된 사용자 목표가격 알림 조건. */
 @Entity
+@Getter
+@NoArgsConstructor(access = AccessLevel.PROTECTED)
 @Table(name = "alerts", indexes = {
 	@Index(name = "idx_alert_condition_lookup", columnList = "market, symbol, status, price_condition, target_price")
 })
@@ -52,9 +57,6 @@ public class AlertEntity {
 	@Column(name = "fired_at")
 	private Instant firedAt;
 
-	protected AlertEntity() {
-	}
-
 	public AlertEntity(
 		String userId,
 		String market,
@@ -74,29 +76,5 @@ public class AlertEntity {
 		if (createdAt == null) {
 			createdAt = Instant.now();
 		}
-	}
-
-	public Long getId() {
-		return id;
-	}
-
-	public String getUserId() {
-		return userId;
-	}
-
-	public String getMarket() {
-		return market;
-	}
-
-	public String getSymbol() {
-		return symbol;
-	}
-
-	public AlertPriceCondition getPriceCondition() {
-		return priceCondition;
-	}
-
-	public BigDecimal getTargetPrice() {
-		return targetPrice;
 	}
 }

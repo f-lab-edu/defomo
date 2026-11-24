@@ -10,8 +10,10 @@ import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
-/** 가격 이벤트에 해당하는 활성 알림 조건을 조회하고 상태를 변경한다. */
+/** 알림 조건을 저장하고 조회한다. */
 public interface AlertRepository extends JpaRepository<AlertEntity, Long> {
+
+	List<AlertEntity> findByUserIdOrderByCreatedAtDescIdDesc(String userId);
 
 	@Query("""
 		select alert from AlertEntity alert

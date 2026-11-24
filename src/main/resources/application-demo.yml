@@ -1,0 +1,21 @@
+spring:
+  kafka:
+    consumer:
+      group-id: defomo-admin-trade-execution-consumer
+
+logging:
+  level:
+    com.defomo.marketdata.adapter.out.kafka.KafkaTradeExecutionEventPublisher: DEBUG
+    com.defomo.marketdata.adapter.in.kafka.TradeExecutionEventKafkaConsumer: DEBUG
+    org.apache.kafka.clients.producer.ProducerConfig: WARN
+
+tossinvest:
+  client-id: ""
+  client-secret: ""
+  market-data:
+    kr-symbols: []
+    us-symbols: []
+
+defomo:
+  kafka:
+    trade-executions-topic: defomo.admin.trade-executions

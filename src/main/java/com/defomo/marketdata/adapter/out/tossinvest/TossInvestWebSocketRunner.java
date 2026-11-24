@@ -1,8 +1,10 @@
 package com.defomo.marketdata.adapter.out.tossinvest;
 
-import com.defomo.marketdata.application.TradeExecutionBatchAggregator;
+import com.defomo.marketdata.application.TradeExecutionInputService;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.micrometer.core.instrument.Gauge;
+import io.micrometer.core.instrument.MeterRegistry;
 import java.math.BigDecimal;
 import java.net.URI;
 import java.net.http.HttpClient;
@@ -14,10 +16,14 @@ import java.util.Set;
 import java.util.concurrent.CompletionStage;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
+
+import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
+import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
@@ -25,6 +31,8 @@ import org.springframework.util.StringUtils;
  * <p>자동 재연결과 체결 데이터 저장은 담당하지 않는다.</p>
  */
 @Component
+@Profile("!demo")
+@RequiredArgsConstructor
 public class TossInvestWebSocketRunner implements ApplicationRunner, AutoCloseable {
 
 	private static final Logger log = LoggerFactory.getLogger(TossInvestWebSocketRunner.class);
@@ -35,22 +43,13 @@ public class TossInvestWebSocketRunner implements ApplicationRunner, AutoCloseab
 
 	private final TossInvestProperties properties;
 	private final TossInvestTokenClient tokenClient;
-	private final TradeExecutionBatchAggregator batchAggregator;
+	private final TradeExecutionInputService tradeExecutionInputService;
 	private final ObjectMapper objectMapper;
-	private final HttpClient httpClient;
+	private final MeterRegistry meterRegistry;
+	private final HttpClient httpClient = HttpClient.newBuilder()
+		.connectTimeout(Duration.ofSeconds(10))
+		.build();
 	private final Set<WebSocket> sockets = ConcurrentHashMap.newKeySet();
-
-	public TossInvestWebSocketRunner(
-		TossInvestProperties properties,
-		TossInvestTokenClient tokenClient,
-		TradeExecutionBatchAggregator batchAggregator,
-		ObjectMapper objectMapper) {
-		this.properties = properties;
-		this.tokenClient = tokenClient;
-		this.batchAggregator = batchAggregator;
-		this.objectMapper = objectMapper;
-		this.httpClient = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(10)).build();
-	}
 
 	/**
 	 * 설정된 종목의 체결 구독을 앱 시작 시 연결한다.
@@ -100,7 +99,7 @@ public class TossInvestWebSocketRunner implements ApplicationRunner, AutoCloseab
 				.connectTimeout(Duration.ofSeconds(10))
 				.header("Authorization", "Bearer " + token)
 				.buildAsync(URI.create(properties.getWebsocketUrl()),
-					new TradeListener(market, declaration, batchAggregator))
+					new TradeListener(market, declaration, tradeExecutionInputService))
 				.get(15, TimeUnit.SECONDS);
 			sockets.add(socket);
 			log.info("TossInvest {} trade WebSocket connected; {} symbols requested", market, symbols.size());
@@ -151,26 +150,34 @@ public class TossInvestWebSocketRunner implements ApplicationRunner, AutoCloseab
 		private final Logger listenerLog = LoggerFactory.getLogger(TradeListener.class);
 		private final String market;
 		private final String declaration;
-		private final TradeExecutionBatchAggregator batchAggregator;
+		private final TradeExecutionInputService tradeExecutionInputService;
 		private final StringBuilder fragments = new StringBuilder();
 		private final Set<String> firstSeenTopics = ConcurrentHashMap.newKeySet();
+		private final AtomicInteger connectionState = new AtomicInteger();
 
 		/**
 		 * @param market 로그에 사용할 시장 코드
 		 * @param declaration 연결 후 전송할 JSON 구독 목록
-		 * @param batchAggregator 체결 데이터 집계 기능
+		 * @param tradeExecutionInputService 체결별 즉시 발행 기능
 		 */
 		private TradeListener(
 			String market,
 			String declaration,
-			TradeExecutionBatchAggregator batchAggregator) {
+			TradeExecutionInputService tradeExecutionInputService) {
 			this.market = market;
 			this.declaration = declaration;
-			this.batchAggregator = batchAggregator;
+			this.tradeExecutionInputService = tradeExecutionInputService;
+			// 시장별 토스 웹소켓 연결 상태다. 연결 중이면 1, 끊기면 0이다.
+			Gauge.builder("defomo.marketdata.websocket.connected", connectionState, AtomicInteger::get)
+				.tag("market", market)
+				.description("Whether the TossInvest WebSocket is connected")
+				.register(meterRegistry);
 		}
 
 		@Override
 		public void onOpen(WebSocket webSocket) {
+			// 웹소켓 연결 상태(연결됨)를 모니터링 지표에 반영한다.
+			connectionState.set(1);
 			listenerLog.info("TossInvest {} WebSocket handshake succeeded", market);
 			webSocket.request(1);
 			webSocket.sendText(declaration, true).whenComplete((ignored, error) -> {
@@ -204,7 +211,7 @@ public class TossInvestWebSocketRunner implements ApplicationRunner, AutoCloseab
 				switch (type) {
 					// 구독 요청이 서버에서 승인됐는지 확인한다.
 					case "subscriptions" -> handleSubscriptionAck(message);
-					// 체결 메시지에서 종목과 가격을 꺼내 배치 집계기에 전달한다.
+					// 체결 메시지에서 종목과 가격을 꺼내 즉시 발행 서비스에 전달한다.
 					case "message" -> {
 						handleTradeMessage(message);
 					}
@@ -217,8 +224,9 @@ public class TossInvestWebSocketRunner implements ApplicationRunner, AutoCloseab
 					default -> listenerLog.debug("TossInvest {} WebSocket frame: {}", market, frame);
 				}
 			} catch (Exception exception) {
-				// JSON 형식이 잘못됐거나 메시지 처리 중 오류가 나면 원문과 원인을 기록한다.
-				listenerLog.warn("Could not parse TossInvest {} WebSocket frame: {}", market, frame, exception);
+				// 메시지 파싱 또는 체결 처리 중 오류가 발생한 수
+				meterRegistry.counter("defomo.marketdata.websocket.message.failures", "market", market).increment();
+				listenerLog.warn("Could not parse or process TossInvest {} WebSocket frame: {}", market, frame, exception);
 			}
 		}
 
@@ -240,29 +248,34 @@ public class TossInvestWebSocketRunner implements ApplicationRunner, AutoCloseab
 			String symbol = topic.substring(topic.lastIndexOf(':') + 1);
 			String timestamp = data.path("timestamp").asText();
 			String price = data.path("price").asText();
-			// 필수 값이 빠진 메시지는 집계하지 않고 파싱 오류로 처리한다.
+			// 필수 값이 빠진 메시지는 처리하지 않고 파싱 오류로 처리한다.
 			if (!StringUtils.hasText(symbol) || !StringUtils.hasText(price)
 				|| !StringUtils.hasText(timestamp)) {
 				throw new IllegalArgumentException("Required trade event fields are missing");
 			}
+			BigDecimal tradePrice = new BigDecimal(price);
+			// 수집된 데이터 중 파싱이 성공한 개수 측정
+			meterRegistry.counter("defomo.marketdata.websocket.trades.received", "market", market).increment();
 
 			// 가격은 부동소수점 오차 없이 다루기 위해 BigDecimal로 변환한다.
-			// 현재 집계기에는 시장, 종목, 가격만 전달하고 체결 시각은 수신 로그에만 사용한다.
-			batchAggregator.accept(market, symbol, new BigDecimal(price));
+			// 즉시 발행 서비스에는 시장, 종목, 가격만 전달하고 체결 시각은 수신 로그에만 사용한다.
+			tradeExecutionInputService.addTrade(market, symbol, tradePrice);
+			// 수집한 데이터가 성공적으로 발행 서비스로 전달된 개수 측정
+			meterRegistry.counter("defomo.marketdata.websocket.trades.forwarded", "market", market).increment();
 			// 종목별 첫 체결은 INFO, 이후 체결은 로그량을 줄이기 위해 DEBUG로 기록한다.
 			if (firstSeenTopics.add(topic)) {
-				listenerLog.info(
-					"First TossInvest {} trade received: symbol={}, timestamp={}, price={}",
+				listenerLog.info("First TossInvest {} trade received: symbol={}, timestamp={}, price={}",
 					market, symbol, timestamp, price);
 			} else {
-				listenerLog.debug(
-					"TossInvest {} trade received: symbol={}, timestamp={}, price={}",
+				listenerLog.debug("TossInvest {} trade received: symbol={}, timestamp={}, price={}",
 					market, symbol, timestamp, price);
 			}
 		}
 
 		@Override
 		public CompletionStage<?> onClose(WebSocket webSocket, int statusCode, String reason) {
+			// 웹소켓 연결 상태(끊김)를 모니터링 지표에 반영한다.
+			connectionState.set(0);
 			sockets.remove(webSocket);
 			listenerLog.warn("TossInvest {} WebSocket closed: code={}, reason={}", market, statusCode, reason);
 			return null;
@@ -270,6 +283,8 @@ public class TossInvestWebSocketRunner implements ApplicationRunner, AutoCloseab
 
 		@Override
 		public void onError(WebSocket webSocket, Throwable error) {
+			// 웹소켓 연결 상태(끊김)를 모니터링 지표에 반영한다.
+			connectionState.set(0);
 			sockets.remove(webSocket);
 			listenerLog.error("TossInvest {} WebSocket failed", market, error);
 		}
